@@ -2,7 +2,7 @@
 
 Qwen3-VL-4B-Instruct 模型的多模态微调过程，采用 MOELora（混合专家 LoRA） 技术，使用 COCO 2014 数据集（前 500/1000）
 
-![image-20251018215438537](image\image.png)
+![](image/image.png)
 将 MOE（混合专家模型）的动态路由机制与 LoRA 的低秩适配结合，在有限显存硬件上实现高效微调 —— 通过控制专家数量（2 个专家）和单专家低秩结构（r=8）
 
 ##### 代码包含完整流程代码
@@ -17,7 +17,7 @@ ModelScope 数据集加载->多模态数据预处理->lora\MOELora 微调配置-
 
 模型从 huggingface 下载到本地后，将 test.py 中的 model_id 换为本地路径，运行 test.py 文件
 
-![image-20251018215438537](image\image-20251018215438537.png)
+![](image/image-20251018215438537.png)
 
 #### 2.基本 lora 微调
 
@@ -40,11 +40,11 @@ config = LoraConfig(
 )
 ```
 
-![image-20251019172207276](image\image-20251019172207276.png)
+![](image/image-20251019172207276.png)
 
 微调图像
 
-![image-20251019210718609](image\image-20251019210718609.png)
+![](image/image-20251019210718609.png)
 
 #### 训练运行（log）
 
@@ -94,7 +94,7 @@ infer_model.to("cuda").eval()
 注意：不要把本地路径以 `model_id=` 形式传给 `from_pretrained` 里会触发 HF repo id 验证（日志里已见错误提示）。直接把本地 checkpoint 目录路径作为第一个参数传入 `PeftModel.from_pretrained` 即可。
 
 微调后推理结果
-![image-20251019210718609](image\PixPin_2025-11-03_17-12-57.png)
+![](image/PixPin_2025-11-03_17-12-57.png)
 
 ###### 致谢:
 
