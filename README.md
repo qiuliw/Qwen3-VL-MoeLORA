@@ -1,9 +1,9 @@
 # Qwen3-VL-MoeLORA
 
-在千问最新的多模态 image-text 模型 **Qwen3-VL-4B-Instruct** 上完成 MOELoRA（混合专家 LoRA）微调，同时打通 COCO 2014 数据处理、SwanLab 监控、LangChain + RAG + Qt 多智能体模型部署的全过程。
-
 ![](image/image.png)
-首先简单介绍一下 Qwen-vl 和 Qwen3-vl
+
+> 在千问最新的多模态 image-text 模型 **Qwen3-VL-4B-Instruct** 上完成 MOELoRA（混合专家 LoRA）微调，同时打通 COCO 2014 数据处理、SwanLab 监控、LangChain + RAG + Qt 多智能体模型部署的全过程。
+> 首先简单介绍一下 Qwen-vl 和 Qwen3-vl
 
 <details>
 <summary><strong>Qwen-VL</strong></summary>
@@ -106,7 +106,11 @@ pip install -r requirements.txt  # 首次执行
 python main_app.py
 ```
 
-左侧输入问题/上传图片，右侧会展示 Planner/Manager 计划、RAG 检索摘要与最终回复（UI 截图待添加）。
+左侧输入问题/上传图片，右侧会展示 Planner/Manager 计划、RAG 检索摘要与最终回复
+
+> 可以看到智能体正确回答我的问题：小苔藓于今年 9 月 25 日保送到厦门大学（也就是本人，哈哈，目前 GUI 还有点小问题，文字内容不长展示不全）
+
+![](image/image%20copy.png)
 
 ### 5. LoRA / MoeLoRA 微调
 
