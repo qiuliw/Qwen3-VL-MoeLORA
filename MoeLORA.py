@@ -154,7 +154,7 @@ model = AutoModelForImageTextToText.from_pretrained(
 model.config.use_cache = config['model']['use_cache']
 if config['model']['gradient_checkpointing']:
     model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
+    model.enable_input_require_grads()  # 开启梯度检查点时，要执行该方法
 
 # 处理数据集：读取json文件
 train_json_path = config['dataset']['train_json_path']
