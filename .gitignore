@@ -216,3 +216,5 @@ coco_2014_caption/
 qwen3-vl-4b-instruct/
 *.csv
 data_vl.json
+data_vl_test.json
+data_vl_train.json

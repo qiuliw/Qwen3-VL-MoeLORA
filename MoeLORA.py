@@ -15,15 +15,33 @@ import os
 from glob import glob
 import swanlab
 import json
+import yaml
+import argparse
 from transformers import BitsAndBytesConfig
 from dataclasses import dataclass, field
 from peft import PeftModel, inject_adapter_in_model
 from peft.tuners.lora import LoraLayer
+
+# 解析命令行参数
+parser = argparse.ArgumentParser(description='Train Qwen3-VL with MoeLoRA')
+parser.add_argument('--config', type=str, default='config.yaml',
+                    help='Path to configuration file (default: config.yaml)')
+args_cmd = parser.parse_args()
+
+# 加载配置文件
+def load_config(config_path: str):
+    """加载 YAML 配置文件"""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    return config
+
+# 加载配置
+config = load_config(args_cmd.config)
 def process_func(example):
     """
     将数据集进行预处理
     """
-    MAX_LENGTH = 8192
+    MAX_LENGTH = config['dataset']['max_length']
     input_ids, attention_mask, labels = [], [], []
     conversation = example["conversations"]
     input_content = conversation[0]["value"]
@@ -36,8 +54,8 @@ def process_func(example):
                 {
                     "type": "image",
                     "image": f"{file_path}",
-                    "resized_height": 280,
-                    "resized_width": 280,
+                    "resized_height": config['dataset']['image_resize_height'],
+                    "resized_width": config['dataset']['image_resize_width'],
                 },
                 {"type": "text", "text": "COCO Yes:"},
             ],
@@ -111,36 +129,47 @@ def predict(messages, model):
     return output_text[0]
 
 # 4-bit量化配置（显存占用更低）
+quant_cfg = config['quantization']
+compute_dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16}
 bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,  # 改为4-bit量化
-    bnb_4bit_use_double_quant=True,  # 双量化优化
-    bnb_4bit_quant_type="nf4",  # 推荐的4-bit类型
-    bnb_4bit_compute_dtype=torch.float16  # 计算时用float16加速
-)
-# 在modelscope上下载Qwen2-VL模型到本地目录下
-model_id = "./qwen3-vl-4b-instruct" 
+    load_in_4bit=quant_cfg['load_in_4bit'],
+    bnb_4bit_use_double_quant=quant_cfg['bnb_4bit_use_double_quant'],
+    bnb_4bit_quant_type=quant_cfg['bnb_4bit_quant_type'],
+    bnb_4bit_compute_dtype=compute_dtype_map.get(quant_cfg['bnb_4bit_compute_dtype'], torch.float16)
+) if quant_cfg['load_in_4bit'] else None
+
+# 模型路径
+model_id = config['model']['model_name_or_path']
 # 使用Transformers加载模型权重
-tokenizer = AutoTokenizer.from_pretrained("qwen3-vl-4b-instruct", use_fast=False, trust_remote_code=True)
-processor = AutoProcessor.from_pretrained("qwen3-vl-4b-instruct")
+tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=config['model']['trust_remote_code'])
+processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=config['model']['trust_remote_code'])
 
 model = AutoModelForImageTextToText.from_pretrained(
     model_id,
     quantization_config=bnb_config,
-    device_map="auto", # 此时显存足够，会完全加载到GPU
+    device_map="auto",
     dtype=torch.float16,
-    trust_remote_code=True
+    trust_remote_code=config['model']['trust_remote_code']
 )
-model.config.use_cache = False              # <<< 确保训练时关闭 cache（避免警告）
-model.gradient_checkpointing_enable()       # <<< 如果你想用 checkpointing 节省显存
-model.enable_input_require_grads()  # 开启梯度检查点时，要执行该方法
+model.config.use_cache = config['model']['use_cache']
+if config['model']['gradient_checkpointing']:
+    model.gradient_checkpointing_enable()
+    model.enable_input_require_grads()
 
 # 处理数据集：读取json文件
-# 拆分成训练集和测试集，保存为data_vl_train.json和data_vl_test.json
-train_json_path = "data_vl.json"
+train_json_path = config['dataset']['train_json_path']
 with open(train_json_path, 'r') as f:
     data = json.load(f)
-    train_data = data[:-4]
-    test_data = data[-4:]
+    
+# 限制训练数据数量
+max_train_samples = config['dataset']['max_train_samples']
+if max_train_samples and max_train_samples > 0:
+    data = data[:max_train_samples]
+    
+# 拆分成训练集和测试集
+test_samples = config['dataset']['test_samples']
+train_data = data[:-test_samples] if len(data) > test_samples else data
+test_data = data[-test_samples:] if len(data) > test_samples else []
 
 with open("data_vl_train.json", "w") as f:
     json.dump(train_data, f)
@@ -158,6 +187,9 @@ class MOELoraConfig(LoraConfig):
     num_experts: int = field(default=2, metadata={"help": "专家模块数量（8G显存建议≤2）"})
     gate_dropout: float = field(default=0.1, metadata={"help": "路由门控的dropout"})
     expert_capacity: int = field(default=1, metadata={"help": "每个token最多激活的专家数"})
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
     # 新增PEFT检查所需的属性（显式标记为非prompt learning）
     @property
     def is_prompt_learning(self):
@@ -167,26 +199,29 @@ class MOELoraConfig(LoraConfig):
     def is_adaption_prompt(self):
         return False
 
-#显卡资源有限时
-config = MOELoraConfig(
-    task_type=TaskType.CAUSAL_LM,
-    # 目标模块保持不变（文本+视觉关键层）
-    target_modules=[
-        # 文本模块
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        # 视觉模块
-        "visual_q_proj", "visual_k_proj"
-    ],
-    inference_mode=False,
-    r=8,  # 单个专家的秩（总参数=num_experts * r * ...，保持小秩适配显存）
-    lora_alpha=16,
-    lora_dropout=0.05,
-    bias="none",
-    # MOE特有参数（核心）
-    num_experts=2,  # 专家数量（8G显存最多2个，避免显存爆炸）
-    gate_dropout=0.1,  # 防止门控过拟合
-    expert_capacity=1  # 每个token仅激活1个专家（减少计算量）
-)
+# 配置LoRA参数
+lora_cfg = config['lora']
+if lora_cfg['lora_type'] == 'moelora':
+    peft_config = MOELoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=lora_cfg['target_modules'],
+        r=lora_cfg['r'],
+        lora_alpha=lora_cfg['lora_alpha'],
+        lora_dropout=lora_cfg['lora_dropout'],
+        num_experts=lora_cfg['num_experts'],
+        gate_dropout=lora_cfg['gate_dropout'],
+        expert_capacity=1,
+        bias="none",
+    )
+else:
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=lora_cfg['target_modules'],
+        r=lora_cfg['r'],
+        lora_alpha=lora_cfg['lora_alpha'],
+        lora_dropout=lora_cfg['lora_dropout'],
+        bias="none",
+    )
 
 #自定义 MOELora 层  每个专家是一组 LoRA 低秩矩阵（保持参数少的优势）；
 class MOELoraLayer(LoraLayer):
@@ -239,52 +274,73 @@ class MOELoraLayer(LoraLayer):
 
 # 替换原get_peft_model，注入MOELora层
 # 替换get_moe_peft_model函数为：
-def get_moe_peft_model(model, config):
+def get_moe_peft_model(model, peft_config):
     # 显式指定适配器层为MOELoraLayer
-    config.adapter_layer = MOELoraLayer
-    return get_peft_model(model, config)
+    peft_config.adapter_layer = MOELoraLayer
+    return get_peft_model(model, peft_config)
+
 #获取Lora模型
-peft_model = get_moe_peft_model(model, config)  # 使用MOELora模型
-peft_model.print_trainable_parameters()  # 确认参数规模（应略大于原LoRA，2个专家约2倍）
+if lora_cfg['lora_type'] == 'moelora':
+    peft_model = get_moe_peft_model(model, peft_config)
+else:
+    peft_model = get_peft_model(model, peft_config)
+peft_model.print_trainable_parameters()
 # 配置训练参数
+train_cfg = config['training']
 args = TrainingArguments(
-    output_dir="./output/Qwen3-VL-4Bmoelora",
-    per_device_train_batch_size=1,
-    gradient_accumulation_steps=8,
-    logging_steps=10,
-    logging_first_step=5,
-    num_train_epochs=5,
-    save_steps=100,
-    learning_rate=1e-4,
-    fp16=True,
-    save_on_each_node=True,
-    gradient_checkpointing=True,
-    report_to="none",
-)
-        
-# 设置SwanLab回调
-swanlab_callback = SwanLabCallback(
-    project="Qwen3-VL-finetune",
-    experiment_name="qwen3-vl-coco2014",
-    config={
-        "model": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct",
-        "dataset": "https://modelscope.cn/datasets/modelscope/coco_2014_caption/quickstart",
-        "github": "https://github.com/datawhalechina/self-llm",
-        "prompt": "COCO Yes: ",
-        "train_data_number": len(train_data),
-        "lora_rank": 8,
-        "lora_alpha": 16,
-        "lora_dropout": 0.1,
-    },
+    output_dir=train_cfg['output_dir'],
+    per_device_train_batch_size=train_cfg['per_device_train_batch_size'],
+    gradient_accumulation_steps=train_cfg['gradient_accumulation_steps'],
+    logging_steps=train_cfg['logging_steps'],
+    logging_first_step=train_cfg['logging_first_step'],
+    num_train_epochs=train_cfg['num_train_epochs'] if train_cfg['max_steps'] is None else None,
+    max_steps=train_cfg['max_steps'],
+    save_steps=train_cfg['save_steps'],
+    learning_rate=train_cfg['learning_rate'],
+    optim=train_cfg.get('optim', 'adamw_torch'),
+    fp16=train_cfg['fp16'],
+    bf16=train_cfg.get('bf16', False),
+    save_on_each_node=train_cfg['save_on_each_node'],
+    gradient_checkpointing=train_cfg['gradient_checkpointing'],
+    dataloader_num_workers=train_cfg.get('dataloader_num_workers', 0),
+    report_to=config['misc']['report_to'],
+    seed=config['misc'].get('seed', 42),
 )
 
+# 设置SwanLab回调
+swanlab_callback = None
+if config['swanlab']['enabled']:
+    # 如果配置文件中有 api_key，提前初始化避免交互式登录
+    swanlab_api_key = config['swanlab'].get('api_key')
+    if swanlab_api_key:
+        swanlab.init(
+            project=config['swanlab']['project'],
+            experiment_name=config['swanlab']['experiment_name'],
+            api_key=swanlab_api_key,
+        )
+    
+    swanlab_config = config['swanlab']['config'].copy()
+    swanlab_config.update({
+        "train_data_number": len(train_data),
+        "lora_rank": lora_cfg['r'],
+        "lora_alpha": lora_cfg['lora_alpha'],
+        "lora_dropout": lora_cfg['lora_dropout'],
+        "lora_type": lora_cfg['lora_type'],
+    })
+    swanlab_callback = SwanLabCallback(
+        project=config['swanlab']['project'],
+        experiment_name=config['swanlab']['experiment_name'],
+        config=swanlab_config,
+    )
+
 # 配置Trainer
+callbacks_list = [swanlab_callback] if swanlab_callback else []
 trainer = Trainer(
     model=peft_model,
     args=args,
     train_dataset=train_dataset,
     data_collator=DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True),
-    callbacks=[swanlab_callback],
+    callbacks=callbacks_list,
 )
 
 # 开启模型训练
@@ -292,25 +348,33 @@ trainer.train()
 
 # ====================测试模式===================
 # 配置测试参数（与训练时的LoRA配置完全一致）
-# 替换测试阶段的val_config
-val_config = MOELoraConfig(  # 改为MOELoraConfig
-    task_type=TaskType.CAUSAL_LM,
-    target_modules=[
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "visual_q_proj", "visual_k_proj"
-    ],
-    inference_mode=True,
-    r=8,
-    lora_alpha=16,
-    lora_dropout=0.05,
-    bias="none",
-    num_experts=2,  # 与训练时一致
+if lora_cfg['lora_type'] == 'moelora':
+    val_config = MOELoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=lora_cfg['target_modules'],
+        r=lora_cfg['r'],
+        lora_alpha=lora_cfg['lora_alpha'],
+        lora_dropout=lora_cfg['lora_dropout'],
+        num_experts=lora_cfg['num_experts'],
+        gate_dropout=lora_cfg['gate_dropout'],
+        expert_capacity=1,
+        bias="none",
+    )
+else:
+    val_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=lora_cfg['target_modules'],
+        r=lora_cfg['r'],
+        lora_alpha=lora_cfg['lora_alpha'],
+        lora_dropout=lora_cfg['lora_dropout'],
+        bias="none",
+    )
     expert_capacity=1
 )
 
 # 自动获取最新checkpoint
-checkpoint_dirs = glob("./output/Qwen3-VL-4Bmoelora/checkpoint-*")
-latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime) if checkpoint_dirs else "./output/Qwen3-VL-4Bmoelora"
+checkpoint_dirs = glob(f"{train_cfg['output_dir']}/checkpoint-*")
+latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime) if checkpoint_dirs else train_cfg['output_dir']
 # 获取测试模型
 val_peft_model = PeftModel.from_pretrained(model, model_id=latest_checkpoint, config=val_config)
 
