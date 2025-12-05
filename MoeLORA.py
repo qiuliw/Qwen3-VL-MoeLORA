@@ -369,8 +369,6 @@ else:
         lora_dropout=lora_cfg['lora_dropout'],
         bias="none",
     )
-    expert_capacity=1
-)
 
 # 自动获取最新checkpoint
 checkpoint_dirs = glob(f"{train_cfg['output_dir']}/checkpoint-*")
