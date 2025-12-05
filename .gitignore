@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project specific - Data and Model directories
+# Ignore all contents but keep directory structure
+data/
+!data/.gitkeep
+model/
+!model/.gitkeep
+coco_2014_caption/
+qwen3-vl-4b-instruct/
+*.csv
+data_vl.json

@@ -72,15 +72,50 @@ Qwen3-VL-MoeLORA/
 
 ### 1. 克隆 & 创建虚拟环境
 
+使用 [uv](https://github.com/astral-sh/uv) 快速创建 Python 3.12 环境：
+
+**Windows:**
 ```powershell
+# 安装 uv (如果未安装)
+powershell -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 将 uv 添加到 PATH (当前会话)
+$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+
+# 方法2: 永久添加到 PATH (需要重启 PowerShell 终端才能生效)
+# [Environment]::SetEnvironmentVariable("Path", "$env:USERPROFILE\.local\bin;$env:Path", "User")
+# 然后关闭并重新打开 PowerShell 终端
+
+# 验证 uv 是否可用
+uv --version
+# 如果显示版本号，说明配置成功
+
+# 克隆项目
 git clone https://github.com/<your-account>/Qwen3-VL-MoeLORA.git
 cd Qwen3-VL-MoeLORA
-python -m venv .venv
+
+# 使用 uv 创建 Python 3.12 虚拟环境并安装依赖
+uv venv --python 3.12
 .venv\Scripts\activate
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
-> 多智能体桌面端依赖额外的 PyQt5/FAISS，可在 `multi_agent/` 目录执行 `pip install -r requirements.txt`。
+**Linux/Mac:**
+```bash
+# 安装 uv (如果未安装)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 克隆项目
+git clone https://github.com/<your-account>/Qwen3-VL-MoeLORA.git
+cd Qwen3-VL-MoeLORA
+
+# 使用 uv 创建 Python 3.12 虚拟环境并安装依赖
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+> 多智能体桌面端依赖额外的 PyQt5/FAISS，可在 `multi_agent/` 目录执行 `uv pip install -r requirements.txt`。
 
 ### 2. 下载模型与数据集
 
@@ -94,6 +129,13 @@ python download_data2csv.py --output ./coco_2014_caption/train.csv
 # 转换为 Qwen3-VL JSON（可指定条目）
 python csv2json.py --csv ./coco_2014_caption/train.csv --json ./coco_2014_caption/train.json --top_k 500
 ```
+
+#### 📝 自定义参数说明
+
+| 参数 | 说明 | 默认值 | 修改位置 |
+|------|------|--------|----------|
+| **ModelScope Token** | 用于下载 ModelScope 数据集和模型的认证 token。如果下载失败，可在 [ModelScope](https://modelscope.cn) 注册账号并获取 token，然后设置环境变量：<br>`$env:MODELSCOPE_API_TOKEN="your_token"` (Windows)<br>`export MODELSCOPE_API_TOKEN="your_token"` (Linux/Mac) | 无 | 环境变量或 `download_data2csv.py` / `download_model.py` 中的 `token` 参数 |
+| **SwanLab Token** | 用于训练数据可视化的认证 token。SwanLab 提供训练过程的可视化监控，包括损失曲线、学习率等指标。获取方式：<br>1. 访问 [SwanLab](https://swanlab.cn) 注册账号<br>2. 在个人设置中获取 API Key<br>3. 设置环境变量：<br>`$env:SWANLAB_API_KEY="your_api_key"` (Windows)<br>`export SWANLAB_API_KEY="your_api_key"` (Linux/Mac)<br>或在 `MoeLORA.py` 中通过 `swanlab.init()` 的 `api_key` 参数设置 | 无 | 环境变量 `SWANLAB_API_KEY` 或 `MoeLORA.py` 中的 `swanlab.init()` 调用 |
 
 ### 3. 快速推理（基座或 LoRA）
 
