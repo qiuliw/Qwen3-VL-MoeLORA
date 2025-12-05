@@ -70,6 +70,52 @@ Qwen3-VL-MoeLORA/
 
 ## ⚙️ 快速上手
 
+### 0. 环境要求：PyTorch 和 CUDA 版本对应
+
+**⚠️ 重要提示：** 本项目需要 GPU 支持，请确保安装支持 CUDA 的 PyTorch 版本，而不是 CPU 版本。
+
+#### 检查当前环境
+```bash
+# 检查 GPU 是否可用
+python -c "import torch; print('PyTorch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda if torch.cuda.is_available() else 'N/A')"
+
+# 检查 NVIDIA 驱动和 CUDA 版本
+nvidia-smi
+```
+
+#### PyTorch 和 CUDA 版本对应表
+
+| PyTorch 版本 | CUDA 版本 | 安装命令 |
+|-------------|----------|---------|
+| 2.6.0 | CUDA 12.4 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124` |
+| 2.5.0 | CUDA 12.4 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124` |
+| 2.4.0 | CUDA 12.1 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121` |
+| 2.3.0 | CUDA 12.1 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121` |
+| 2.2.0 | CUDA 11.8 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118` |
+| 2.1.0 | CUDA 11.8 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118` |
+
+#### 安装步骤
+
+1. **检查 NVIDIA 驱动版本**（通过 `nvidia-smi` 查看）
+2. **根据驱动支持的 CUDA 版本选择对应的 PyTorch 版本**
+3. **卸载 CPU 版本的 PyTorch**（如果已安装）：
+   ```bash
+   pip uninstall torch torchvision -y
+   ```
+4. **安装支持 CUDA 的 PyTorch**（以 CUDA 12.4 为例）：
+   ```bash
+   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+   ```
+5. **验证安装**：
+   ```bash
+   python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available!'; print('✅ CUDA available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0))"
+   ```
+
+> 💡 **提示**：如果 `torch.cuda.is_available()` 返回 `False`，请检查：
+> - NVIDIA 驱动是否正确安装
+> - PyTorch 是否安装了 CPU 版本（版本号中不包含 `+cu`）
+> - CUDA 版本是否匹配
+
 ### 1. 克隆 & 创建虚拟环境
 
 使用 [uv](https://github.com/astral-sh/uv) 快速创建 Python 3.12 环境：
@@ -97,6 +143,11 @@ cd Qwen3-VL-MoeLORA
 # 使用 uv 创建 Python 3.12 虚拟环境并安装依赖
 uv venv --python 3.12
 .venv\Scripts\activate
+
+# ⚠️ 重要：检查 PyTorch 和 CUDA 版本
+# 确保安装支持 CUDA 的 PyTorch 版本，而不是 CPU 版本
+python -c "import torch; print('PyTorch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+# 如果 CUDA available 为 False，请参考下面的版本对应表重新安装
 uv pip install -r requirements.txt
 ```
 

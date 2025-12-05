@@ -67,6 +67,23 @@ for arg_name, (config_path, _) in CLI_CONFIG_MAPPING.items():
     arg_value = getattr(args_cmd, arg_name, None)
     if arg_value is not None:
         set_nested_value(config, config_path, arg_value)
+
+# 4-bit量化配置（显存占用更低）
+quant_cfg = config['quantization']
+compute_dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16}
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=quant_cfg['load_in_4bit'],  # 改为4-bit量化
+    bnb_4bit_use_double_quant=quant_cfg['bnb_4bit_use_double_quant'],  # 双量化优化
+    bnb_4bit_quant_type=quant_cfg['bnb_4bit_quant_type'],  # 推荐的4-bit类型
+    bnb_4bit_compute_dtype=compute_dtype_map.get(quant_cfg['bnb_4bit_compute_dtype'], torch.float16)  # 计算时用float16加速
+)
+
+# 模型路径
+model_id = config['model']['model_name_or_path']
+# 使用Transformers加载模型权重（必须在 process_func 之前加载，因为函数内部需要使用）
+tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=config['model']['trust_remote_code'])
+processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=config['model']['trust_remote_code'])
+
 def process_func(example):
     """
     将数据集进行预处理
@@ -157,22 +174,6 @@ def predict(messages, model):
     )
     
     return output_text[0]
-
-# 4-bit量化配置（显存占用更低）
-quant_cfg = config['quantization']
-compute_dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16}
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=quant_cfg['load_in_4bit'],  # 改为4-bit量化
-    bnb_4bit_use_double_quant=quant_cfg['bnb_4bit_use_double_quant'],  # 双量化优化
-    bnb_4bit_quant_type=quant_cfg['bnb_4bit_quant_type'],  # 推荐的4-bit类型
-    bnb_4bit_compute_dtype=compute_dtype_map.get(quant_cfg['bnb_4bit_compute_dtype'], torch.float16)  # 计算时用float16加速
-)
-
-# 模型路径
-model_id = config['model']['model_name_or_path']
-# 使用Transformers加载模型权重
-tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=config['model']['trust_remote_code'])
-processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=config['model']['trust_remote_code'])
 
 model = AutoModelForImageTextToText.from_pretrained(
     model_id,
@@ -360,7 +361,7 @@ val_config = MOELoraConfig(  # 改为MOELoraConfig
 checkpoint_dirs = glob(f"{train_cfg['output_dir']}/checkpoint-*")
 latest_checkpoint = max(checkpoint_dirs, key=os.path.getctime) if checkpoint_dirs else train_cfg['output_dir']
 # 获取测试模型
-val_peft_model = PeftModel.from_pretrained(model, model_id=latest_checkpoint, config=val_config)
+val_peft_model = PeftModel.from_pretrained(model, latest_checkpoint, config=val_config)
 
 # 读取测试数据
 with open("data_vl_test.json", "r") as f:
