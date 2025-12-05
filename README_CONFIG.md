@@ -16,6 +16,35 @@ python MoeLORA.py
 python MoeLORA.py --config my_config.yaml
 ```
 
+### 命令行参数覆盖
+
+项目支持通过命令行参数覆盖配置文件中的值，参考 LLaMAFactory 的实现风格。命令行参数的**优先级高于配置文件**。
+
+```bash
+# 使用配置文件，并通过命令行参数覆盖部分配置
+python MoeLORA.py \
+  --model ./qwen3-vl-4b-instruct \
+  --train_json ./coco_2014_caption/train.json \
+  --output_dir ./output/Qwen3-VL-4Blora
+
+# 或者只覆盖部分参数
+python MoeLORA.py --model ./other-model
+```
+
+**支持的命令行参数**：
+
+| 参数 | 说明 | 覆盖的配置项 |
+|------|------|-------------|
+| `--config` | 配置文件路径（默认：`config.yaml`） | - |
+| `--model` | 模型路径 | `model.model_name_or_path` |
+| `--train_json` | 训练数据 JSON 文件路径 | `dataset.train_json_path` |
+| `--output_dir` | 输出目录 | `training.output_dir` |
+
+**使用场景**：
+- 快速测试不同模型或数据集，无需修改配置文件
+- 在 CI/CD 流程中动态指定参数
+- 临时覆盖配置进行实验
+
 ## 配置项说明
 
 ### 1. 模型配置 (`model`)
@@ -90,15 +119,20 @@ quantization:
 ```yaml
 swanlab:
   enabled: true                                  # 是否启用
-  api_key: "your_api_key_here"                   # API Key（可直接在配置文件中设置）
+  api_key: "your_api_key_here"                   # API Key（可直接在配置文件中设置，推荐）
   project: "Qwen3-VL-finetune"                   # 项目名称
   experiment_name: "qwen3-vl-coco2014"           # 实验名称
 ```
 
-**SwanLab API Key 设置方式**（按优先级从高到低）：
-1. **配置文件**：在 `config.yaml` 中设置 `api_key: "your_key_here"`
-2. **环境变量**：`export SWANLAB_API_KEY="your_key_here"`（配置文件为 null 时使用）
-3. **交互式输入**：如果两者都没有，SwanLab 会提示交互式输入（Windows 上可能出现 grep 错误）
+**SwanLab API Key 设置方式**：
+
+在 `config.yaml` 中设置 `api_key`：
+```yaml
+swanlab:
+  api_key: "your_api_key_here"  # 设置为你的 API Key
+```
+
+如果配置文件中 `api_key` 为 `null` 或未设置，SwanLab 会提示交互式输入（Windows 上可能出现 grep 错误）。
 
 ## 配置示例
 
@@ -164,11 +198,27 @@ model:
 
 ### Q: 如何调整训练数据量？
 
-A: 修改：
+A: 有两种方式：
+
+**方式一**：修改配置文件
 ```yaml
 dataset:
   max_train_samples: 100  # 只使用前100条数据
 ```
+
+**方式二**：使用命令行参数（如果支持该参数）
+```bash
+python MoeLORA.py --train_json ./other_data.json
+```
+
+### Q: 命令行参数和配置文件哪个优先级更高？
+
+A: **命令行参数优先级高于配置文件**。如果同时指定，命令行参数会覆盖配置文件中的对应值。
+
+例如：
+- 配置文件中：`model.model_name_or_path: "./qwen3-vl-4b-instruct"`
+- 命令行指定：`--model ./other-model`
+- 最终使用：`./other-model`
 
 ## 配置文件使用
 
@@ -178,7 +228,12 @@ python MoeLORA.py
 
 # 使用自定义配置文件
 python MoeLORA.py --config my_config.yaml
+
+# 使用配置文件 + 命令行参数覆盖
+python MoeLORA.py --config config.yaml --model ./custom-model
 ```
 
-**注意**：SwanLab API Key 可以通过环境变量 `SWANLAB_API_KEY` 设置，避免在配置文件中硬编码。
+**注意**：
+- SwanLab API Key 可以通过环境变量 `SWANLAB_API_KEY` 设置，避免在配置文件中硬编码
+- 命令行参数实现参考 LLaMAFactory 风格，使用点号路径映射到配置文件
 

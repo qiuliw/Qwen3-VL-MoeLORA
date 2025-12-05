@@ -99,8 +99,8 @@ swanlab:
   # 是否启用 SwanLab 可视化
   enabled: true
   
-  # SwanLab API Key（优先级：配置文件 > 环境变量 > 交互式读取）
-  api_key: null  # 设置为你的 API Key，或保持 null 使用环境变量，都没有则交互式输入
+  # SwanLab API Key
+  api_key: null  # 设置为你的 API Key，如果为 null 则交互式输入
   
   # 项目名称
   project: "Qwen3-VL-finetune"

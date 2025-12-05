@@ -135,7 +135,7 @@ python csv2json.py --csv ./coco_2014_caption/train.csv --json ./coco_2014_captio
 | 参数 | 说明 | 默认值 | 修改位置 |
 |------|------|--------|----------|
 | **ModelScope Token** | 用于下载 ModelScope 数据集和模型的认证 token。如果下载失败，可在 [ModelScope](https://modelscope.cn) 注册账号并获取 token，然后设置环境变量：<br>`$env:MODELSCOPE_API_TOKEN="your_token"` (Windows)<br>`export MODELSCOPE_API_TOKEN="your_token"` (Linux/Mac) | 无 | 环境变量或 `download_data2csv.py` / `download_model.py` 中的 `token` 参数 |
-| **SwanLab Token** | 用于训练数据可视化的认证 token。SwanLab 提供训练过程的可视化监控，包括损失曲线、学习率等指标。获取方式：<br>1. 访问 [SwanLab](https://swanlab.cn) 注册账号<br>2. 在个人设置中获取 API Key<br>3. 设置环境变量：<br>`$env:SWANLAB_API_KEY="your_api_key"` (Windows)<br>`export SWANLAB_API_KEY="your_api_key"` (Linux/Mac)<br>或在 `MoeLORA.py` 中通过 `swanlab.init()` 的 `api_key` 参数设置 | 无 | 环境变量 `SWANLAB_API_KEY` 或 `MoeLORA.py` 中的 `swanlab.init()` 调用 |
+| **SwanLab Token** | 用于训练数据可视化的认证 token。SwanLab 提供训练过程的可视化监控，包括损失曲线、学习率等指标。获取方式：<br>1. 访问 [SwanLab](https://swanlab.cn) 注册账号<br>2. 在个人设置中获取 API Key<br>3. 在 `config.yaml` 中设置 `swanlab.api_key: "your_api_key"` | 无 | `config.yaml` 配置文件中的 `swanlab.api_key` |
 
 ### 3. 快速推理（基座或 LoRA）
 
@@ -171,12 +171,37 @@ python main_app.py
 
 ### 5. LoRA / MoeLoRA 微调
 
+项目支持两种配置方式：**YAML 配置文件**（推荐）和**命令行参数**（快速覆盖）。
+
+#### 方式一：使用配置文件（推荐）
+
 ```powershell
+# 使用默认配置文件 config.yaml
+python MoeLORA.py
+
+# 使用自定义配置文件
+python MoeLORA.py --config my_config.yaml
+```
+
+所有参数在 `config.yaml` 中统一管理，参考 LLaMAFactory 风格。详细配置说明见 [README_CONFIG.md](README_CONFIG.md)。
+
+#### 方式二：命令行参数覆盖
+
+```powershell
+# 使用配置文件，并通过命令行参数覆盖部分配置
 python MoeLORA.py \
   --model ./qwen3-vl-4b-instruct \
   --train_json ./coco_2014_caption/train.json \
   --output_dir ./output/Qwen3-VL-4Blora
 ```
+
+**命令行参数优先级高于配置文件**，可以快速覆盖常用参数而无需修改配置文件。
+
+**支持的命令行参数**：
+- `--config`: 指定配置文件路径（默认：`config.yaml`）
+- `--model`: 模型路径（覆盖 `model.model_name_or_path`）
+- `--train_json`: 训练数据 JSON 文件路径（覆盖 `dataset.train_json_path`）
+- `--output_dir`: 输出目录（覆盖 `training.output_dir`）
 
 脚本默认启用 BitsAndBytes 4-bit 与 PEFT，可根据显存情况调整 `r`、`lora_alpha`、`gradient_accumulation_steps` 等参数。训练完成后产物位于 `output/`，可被多智能体或 `test.py` 直接加载。
 

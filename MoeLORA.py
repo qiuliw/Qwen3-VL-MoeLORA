@@ -19,13 +19,88 @@ import yaml
 import argparse
 from transformers import BitsAndBytesConfig
 from dataclasses import dataclass, field
+from typing import Any
 from peft import PeftModel, inject_adapter_in_model
 from peft.tuners.lora import LoraLayer
 
+# ==================== 命令行参数配置映射 ====================
+# 参考 LLaMAFactory 风格：使用点号路径映射命令行参数到配置文件
+# 格式: '命令行参数名': ('配置文件点号路径', '帮助信息')
+CLI_CONFIG_MAPPING = {
+    'model': ('model.model_name_or_path', 'Model path (overrides config file)'),
+    'train_json': ('dataset.train_json_path', 'Training JSON file path (overrides config file)'),
+    'output_dir': ('training.output_dir', 'Output directory (overrides config file)'),
+}
+
+def set_nested_value(config: dict, path: str, value: Any) -> None:
+    """
+    使用点号路径设置嵌套字典的值（参考 LLaMAFactory 实现）
+    
+    Args:
+        config: 配置字典
+        path: 点号分隔的路径，如 'model.model_name_or_path'
+        value: 要设置的值
+    """
+    keys = path.split('.')
+    current = config
+    for key in keys[:-1]:
+        if key not in current:
+            current[key] = {}
+        current = current[key]
+    current[keys[-1]] = value
+
+def get_nested_value(config: dict, path: str, default: Any = None) -> Any:
+    """
+    使用点号路径获取嵌套字典的值
+    
+    Args:
+        config: 配置字典
+        path: 点号分隔的路径
+        default: 默认值
+    
+    Returns:
+        配置值或默认值
+    """
+    keys = path.split('.')
+    current = config
+    for key in keys:
+        if not isinstance(current, dict) or key not in current:
+            return default
+        current = current[key]
+    return current
+
+def setup_argument_parser():
+    """设置命令行参数解析器"""
+    parser = argparse.ArgumentParser(description='Train Qwen3-VL with MoeLoRA')
+    parser.add_argument('--config', type=str, default='config.yaml',
+                        help='Path to configuration file (default: config.yaml)')
+    
+    # 统一添加命令行参数
+    for arg_name, (config_path, help_text) in CLI_CONFIG_MAPPING.items():
+        parser.add_argument(f'--{arg_name}', type=str, default=None, help=help_text)
+    
+    return parser
+
+def apply_cli_overrides(config: dict, args: argparse.Namespace) -> dict:
+    """
+    统一处理命令行参数覆盖配置文件值（参考 LLaMAFactory 实现）
+    
+    Args:
+        config: 从配置文件加载的配置字典
+        args: 解析后的命令行参数
+    
+    Returns:
+        应用命令行覆盖后的配置字典
+    """
+    for arg_name, (config_path, _) in CLI_CONFIG_MAPPING.items():
+        arg_value = getattr(args, arg_name, None)
+        if arg_value is not None:
+            set_nested_value(config, config_path, arg_value)
+    
+    return config
+
 # 解析命令行参数
-parser = argparse.ArgumentParser(description='Train Qwen3-VL with MoeLoRA')
-parser.add_argument('--config', type=str, default='config.yaml',
-                    help='Path to configuration file (default: config.yaml)')
+parser = setup_argument_parser()
 args_cmd = parser.parse_args()
 
 # 加载配置文件
@@ -35,8 +110,9 @@ def load_config(config_path: str):
         config = yaml.safe_load(f)
     return config
 
-# 加载配置
+# 加载配置并应用命令行参数覆盖
 config = load_config(args_cmd.config)
+config = apply_cli_overrides(config, args_cmd)
 def process_func(example):
     """
     将数据集进行预处理
