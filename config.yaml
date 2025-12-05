@@ -36,9 +36,8 @@ training:
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 8
   
-  # 训练轮数和步数
+  # 训练轮数
   num_train_epochs: 5
-  max_steps: null  # 如果设置，会覆盖 num_train_epochs
   
   # 保存和日志
   save_steps: 100
@@ -48,17 +47,12 @@ training:
   # 学习率
   learning_rate: 1.0e-4
   
-  # 优化器配置
-  optim: "adamw_torch"
-  
   # 精度
   fp16: true
-  bf16: false
   
   # 其他配置
   save_on_each_node: true
   gradient_checkpointing: true
-  dataloader_num_workers: 0  # Windows 上建议设置为 0
 
 # ==================== LoRA/MoeLoRA 配置 ====================
 lora:

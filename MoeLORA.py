@@ -32,6 +32,15 @@ CLI_CONFIG_MAPPING = {
     'model': ('model.model_name_or_path', 'Model path (overrides config file)'),
     'train_json': ('dataset.train_json_path', 'Training JSON file path (overrides config file)'),
     'output_dir': ('training.output_dir', 'Output directory (overrides config file)'),
+    # 训练超参覆盖
+    'per_device_train_batch_size': ('training.per_device_train_batch_size', 'Per-device train batch size'),
+    'gradient_accumulation_steps': ('training.gradient_accumulation_steps', 'Gradient accumulation steps'),
+    'num_train_epochs': ('training.num_train_epochs', 'Number of training epochs'),
+    'save_steps': ('training.save_steps', 'Save checkpoint every N steps'),
+    'logging_steps': ('training.logging_steps', 'Log every N steps'),
+    'logging_first_step': ('training.logging_first_step', 'Log on first step'),
+    'learning_rate': ('training.learning_rate', 'Learning rate'),
+    'fp16': ('training.fp16', 'Use fp16 precision'),
 }
 
 # 构建参数配置（用于解析器）
@@ -49,6 +58,20 @@ for arg_name, (config_path, help_text) in CLI_CONFIG_MAPPING.items():
         'default': None,
         'help': help_text
     }
+# 为常见超参设置合适的类型
+SPECIAL_ARG_TYPES = {
+    'per_device_train_batch_size': int,
+    'gradient_accumulation_steps': int,
+    'num_train_epochs': float,
+    'save_steps': int,
+    'logging_steps': int,
+    'logging_first_step': int,
+    'learning_rate': float,
+    'fp16': lambda x: str(x).lower() in ("1", "true", "yes"),
+}
+for name, typ in SPECIAL_ARG_TYPES.items():
+    if name in CLI_ARGS_CONFIG:
+        CLI_ARGS_CONFIG[name]['type'] = typ
 
 # 解析命令行参数
 parser = setup_argument_parser('Train Qwen3-VL with MoeLoRA', CLI_ARGS_CONFIG)

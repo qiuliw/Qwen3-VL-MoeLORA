@@ -248,11 +248,19 @@ python MoeLORA.py \
 
 **命令行参数优先级高于配置文件**，可以快速覆盖常用参数而无需修改配置文件。
 
-**支持的命令行参数**：
-- `--config`: 指定配置文件路径（默认：`config.yaml`）
-- `--model`: 模型路径（覆盖 `model.model_name_or_path`）
-- `--train_json`: 训练数据 JSON 文件路径（覆盖 `dataset.train_json_path`）
-- `--output_dir`: 输出目录（覆盖 `training.output_dir`）
+**支持的命令行参数**（覆盖同名配置，未列出的参数仍从 `config.yaml` 读取）：
+- `--config`：配置文件路径（默认 `config.yaml`）
+- `--model`：模型路径（覆盖 `model.model_name_or_path`）
+- `--train_json`：训练数据 JSON 路径（覆盖 `dataset.train_json_path`）
+- `--output_dir`：输出目录（覆盖 `training.output_dir`）
+- 训练超参覆盖：`--per_device_train_batch_size`、`--gradient_accumulation_steps`、`--num_train_epochs`、`--save_steps`、`--logging_steps`、`--logging_first_step`、`--learning_rate`、`--fp16`
+
+默认训练超参（与原脚本一致，详见 `config.yaml`）：
+- `per_device_train_batch_size=1`，`gradient_accumulation_steps=8`
+- `num_train_epochs=5`（未使用 `max_steps`）
+- `save_steps=100`，`logging_steps=10`，`logging_first_step=5`
+- `learning_rate=1e-4`
+- `fp16=true`，`gradient_checkpointing=true`
 
 脚本默认启用 BitsAndBytes 4-bit 与 PEFT，可根据显存情况调整 `r`、`lora_alpha`、`gradient_accumulation_steps` 等参数。训练完成后产物位于 `output/`，可被多智能体或 `test.py` 直接加载。
 
