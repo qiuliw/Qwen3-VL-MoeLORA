@@ -27,6 +27,9 @@ huggingface-hub<1.0.0,>=0.34.0  # compatible with modelscope<1.20.0
 oss2  # required by modelscope for OSS data download
 addict
 pandas
+# Configuration
+pyyaml
+
 # Optional dependency
 # Uncomment the following line if you need flash-attn
 # flash-attn

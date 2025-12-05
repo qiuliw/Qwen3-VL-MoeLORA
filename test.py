@@ -21,7 +21,13 @@ model = AutoModelForImageTextToText.from_pretrained(
 )
 
 # 2. 加载LoRA微调权重（替换为你的实际checkpoint路径，如最新的checkpoint-310）
-lora_checkpoint = "output/Qwen3-VL-4Blora/checkpoint-310"  
+import os
+lora_checkpoint = "output/Qwen3-VL-4Blora/checkpoint-310"
+if not os.path.exists(lora_checkpoint) or not os.path.exists(os.path.join(lora_checkpoint, "adapter_config.json")):
+    print(f"错误: LoRA checkpoint 不存在: {lora_checkpoint}")
+    print("请先运行训练脚本生成 LoRA 权重：")
+    print("  python MoeLORA.py --model ./qwen3-vl-4b-instruct --train_json ./coco_2014_caption/train.json --output_dir ./output/Qwen3-VL-4Blora")
+    exit(1)
 model = PeftModel.from_pretrained(model, lora_checkpoint)
 model = model.to(model.device)  # 确保模型在GPU上
 
