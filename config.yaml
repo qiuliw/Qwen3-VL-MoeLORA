@@ -68,21 +68,20 @@ lora:
   # LoRA 基础配置
   r: 8
   lora_alpha: 16
-  lora_dropout: 0.1
+  lora_dropout: 0.05
   
   # MoeLoRA 专用配置（仅当 lora_type 为 "moelora" 时生效）
   num_experts: 2  # 专家数量（8G显存建议≤2）
   gate_dropout: 0.1  # 路由门控的dropout
   
-  # 目标模块
+  # 目标模块（与原始代码保持一致）
   target_modules:
     - "q_proj"
     - "k_proj"
     - "v_proj"
     - "o_proj"
-    - "gate_proj"
-    - "up_proj"
-    - "down_proj"
+    - "visual_q_proj"
+    - "visual_k_proj"
 
 # ==================== 量化配置 ====================
 quantization:
@@ -113,7 +112,7 @@ swanlab:
     model: "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct"
     dataset: "https://modelscope.cn/datasets/modelscope/coco_2014_caption/quickstart"
     github: "https://github.com/datawhalechina/self-llm"
-    prompt: "COCO Yes:"
+    prompt: "COCO Yes: "
 
 # ==================== 其他配置 ====================
 misc:
