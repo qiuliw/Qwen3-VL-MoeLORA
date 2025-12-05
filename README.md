@@ -70,6 +70,33 @@ Qwen3-VL-MoeLORA/
 
 ## ⚙️ 快速上手
 
+### 0. 环境概览 & 一键脚本
+
+- **硬件推荐**：RTX 3060（≥8GB）即可运行完整训练；如仅做推理，可改用 CPU 或更低显存显卡。
+- **CUDA / Torch 版本**：`requirements.txt` 默认安装官方通用轮子 `torch==2.5.1`、`torchvision==0.20.1`（pip 会自动匹配当前平台）。若需要特定 CUDA 轮子（如 `+cu121` / `+cu118`），只需在安装时指定 index，例如：  
+  `uv pip install --index-url https://download.pytorch.org/whl/cu124 torch==2.5.1+cu124 torchvision==0.20.1+cu124`。  
+  一键脚本也允许通过 `TORCH_VERSION` / `TORCHVISION_VERSION` / `TORCH_INDEX_URL` 自定义。
+- **一键脚本（推荐）**
+  ```powershell
+  # Windows
+  powershell -ExecutionPolicy Bypass -File .\scripts\setup_env.ps1 -TopK 500
+  ```
+  ```bash
+  # Linux / macOS
+  chmod +x scripts/setup_env.sh
+  TOP_K=500 ./scripts/setup_env.sh
+  ```
+  - 功能：创建 `.venv`、安装 `uv`、补齐依赖、安装指定 CUDA torch、执行 `download_data2csv.py` + `csv2json.py`。
+  - 环境变量：
+    - `TORCH_VERSION` / `TORCHVISION_VERSION` / `TORCH_INDEX_URL`：自由切换不同 CUDA/CPU 轮子。
+    - `TOP_K`：控制 CSV→JSON 采样数量（例如测试用 `TOP_K=1`）。
+    - `SKIP_DATA=1`：跳过数据下载与转换。
+  - **SwanLab**：训练前执行一次  
+    `uv run python -c "import swanlab; swanlab.login(api_key='JltXOzljbWQJSteWuFPOW')"`  
+    若只想本地记录日志，则在运行命令前设置 `SWANLAB_MODE=local`。
+
+> 不使用脚本也没问题，继续看下方“克隆 & 创建虚拟环境”按步骤执行即可；Docker 也可以直接运行脚本。README 已包含全部信息，无需额外文档。
+
 ### 1. 克隆 & 创建虚拟环境
 
 ```powershell
@@ -91,9 +118,16 @@ python download_model.py --target ./qwen3-vl-4b-instruct
 # 下载 COCO Caption 示例并写入 CSV
 python download_data2csv.py --output ./coco_2014_caption/train.csv
 
-# 转换为 Qwen3-VL JSON（可指定条目）
-python csv2json.py --csv ./coco_2014_caption/train.csv --json ./coco_2014_caption/train.json --top_k 500
+# 转换为 Qwen3-VL JSON
+python csv2json.py
 ```
+
+#### 训练数据说明
+
+- `download_data2csv.py` 会将原始 COCO 图片 + `coco-2024-dataset.csv` 放在 `coco_2014_caption/` 目录下，默认采样 500 条。
+- `csv2json.py` 会在项目根目录生成 `data_vl_train.json` / `data_vl_test.json`（脚本用的是固定路径，命令行参数会被忽略），训练命令请使用 `--train_json ./data_vl_train.json`。
+- 若想减少样本数量（例如只训练 1 条加快调试），可以在运行 `csv2json.py` 前自行裁剪 `coco-2024-dataset.csv` 或写一个简单脚本截断，再执行转换。
+- 如果要上传自有数据，只需按 `coco-2024-dataset.csv` 的格式（`image_path,caption`）准备 CSV，放到根目录后运行 `csv2json.py` 即可；对应图片可放在任意路径，CSV 中写绝对/相对路径都可以。
 
 ### 3. 快速推理（基座或 LoRA）
 
@@ -137,6 +171,18 @@ python MoeLORA.py \
 ```
 
 脚本默认启用 BitsAndBytes 4-bit 与 PEFT，可根据显存情况调整 `r`、`lora_alpha`、`gradient_accumulation_steps` 等参数。训练完成后产物位于 `output/`，可被多智能体或 `test.py` 直接加载。
+
+#### Docker 快速启动
+
+```bash
+docker build -t qwen3-vl-moelora .
+docker run --gpus all -it --rm \
+  -v $PWD:/workspace \
+  qwen3-vl-moelora \
+  bash -lc "scripts/setup_env.sh && uv run python test.py --model ./qwen3-vl-4b-instruct --image ./image/demo.jpeg --prompt '描述这张图片'"
+```
+
+如需进入容器后手动执行训练/脚本，也可运行 `docker run ... bash`，再按照本 README 步骤操作。
 
 ##### 代码包含完整流程代码
 

@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project specific
+output/
+multi_agent/output/
+coco_2014_caption/
+qwen3-vl-4b-instruct/
+*.safetensors
+*.csv
+data_vl*.json
+swanlog/
