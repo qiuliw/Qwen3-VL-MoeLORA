@@ -17,7 +17,7 @@ dataset:
   train_json_path: "data_vl.json"
   
   # 最大训练样本数量（用于测试，设置为 null 或 -1 表示使用全部数据）
-  max_train_samples: null
+  max_train_samples: 10
   
   # 测试数据数量（从训练数据末尾取）
   test_samples: 4
